@@ -25,18 +25,21 @@ import (
 	"os"
 	"time"
 
+	"go.etcd.io/etcd/clientv3"
+	etcdnaming "go.etcd.io/etcd/clientv3/naming"
 	"google.golang.org/grpc"
 	pb "grpc-padentic-helloworld/helloworld"
 )
 
 const (
-	address     = "localhost:50051"
+	service     = "greeter_server"
 	defaultName = "world"
 )
 
 func main() {
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	etcd := etcdConnect([]string{"127.0.0.1:2379"})
+	conn, err := etcdDial(etcd, service)
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -62,6 +65,23 @@ func main() {
 
 	for {
 		sayHello()
-		time.Sleep(5*time.Second)
+		time.Sleep(5 * time.Second)
 	}
+}
+
+func etcdConnect(endpoints []string) *clientv3.Client {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("etcd: failed to connect: %v", err)
+	}
+	return cli
+}
+
+func etcdDial(c *clientv3.Client, service string) (*grpc.ClientConn, error) {
+	r := &etcdnaming.GRPCResolver{Client: c}
+	b := grpc.RoundRobin(r)
+	return grpc.Dial(service, grpc.WithBalancer(b), grpc.WithInsecure())
 }
