@@ -30,15 +30,16 @@ import (
 	"syscall"
 	"time"
 
-	//"go.etcd.io/etcd/clientv3"
-	//etcdnaming "go.etcd.io/etcd/clientv3/naming"
+	"go.etcd.io/etcd/clientv3"
+	etcdnaming "go.etcd.io/etcd/clientv3/naming"
 	"google.golang.org/grpc"
-	//"google.golang.org/grpc/naming"
+	"google.golang.org/grpc/naming"
 	pb "grpc-padentic-helloworld/helloworld"
 )
 
 const (
-	port = ":50051"
+	service = "greeter_server"
+	address = "127.0.0.1:0"
 )
 
 // server is used to implement helloworld.GreeterServer.
@@ -53,7 +54,7 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 }
 
 func main() {
-	lis, err := net.Listen("tcp", port)
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -70,24 +71,64 @@ func main() {
 
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	ticker := time.Tick(10 * time.Second)
+	etcd := etcdConnect([]string{"127.0.0.1:2379"})
+	lease := etcdGrant(etcd, 15)
+	etcdLeaseAdd(etcd, lease, service, lis.Addr().String())
 
-	ticker := time.Tick(10*time.Second)
 heartbeatLoop:
 	for {
 		select {
 		case <-ticker:
-			log.Printf("heartbeat")
-		case <- term:
-			log.Printf("graceful stop")
+			etcdKeepAlive(etcd, lease)
+		case <-term:
+			etcdRevoke(etcd, lease)
 			s.GracefulStop()
 			break heartbeatLoop
 		}
 	}
-	<- stopped
+	<-stopped
 	log.Printf("bye bye")
 }
 
-//func etcdLeaseAdd(c *clientv3.Client, lid clientv3.LeaseID, service, addr string) error {
-//	r := &etcdnaming.GRPCResolver{Client: c}
-//	return r.Update(c.Ctx(), service, naming.Update{Op: naming.Add, Addr: addr}, clientv3.WithLease(lid))
-//}
+func etcdConnect(endpoints []string) *clientv3.Client {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("etcd: failed to connect: %v", err)
+	}
+	return cli
+}
+
+func etcdGrant(c *clientv3.Client, ttlSeconds int64) clientv3.LeaseID {
+	var lid clientv3.LeaseID
+	if lgr, err := c.Grant(context.Background(), ttlSeconds); err != nil {
+		log.Fatalf("etcd: failed to grant lease: %v", err)
+	} else {
+		lid = lgr.ID
+	}
+	return lid
+}
+
+func etcdLeaseAdd(c *clientv3.Client, lid clientv3.LeaseID, service, addr string) {
+	r := &etcdnaming.GRPCResolver{Client: c}
+	if err := r.Update(c.Ctx(), service, naming.Update{Op: naming.Add, Addr: addr}, clientv3.WithLease(lid)); err != nil {
+		log.Fatalf("etcd: failed to add service %q addr %q with lease %v: %v", service, addr, lid, err)
+	}
+	log.Printf("etcd: add service %q addr %q with lease %v", service, addr, lid)
+}
+
+func etcdRevoke(c *clientv3.Client, lid clientv3.LeaseID) {
+	c.Revoke(context.Background(), lid)
+	log.Printf("etcd: revoke lease %v", lid)
+}
+
+func etcdKeepAlive(c *clientv3.Client, lid clientv3.LeaseID) {
+	if res, err := c.KeepAliveOnce(context.Background(), lid); err != nil {
+		log.Printf("etcd: failed to keep lease %v alive: %v", lid, err)
+	} else {
+		log.Printf("etcd: keep lease %v alive: ttl %v", lid, res.TTL)
+	}
+}
