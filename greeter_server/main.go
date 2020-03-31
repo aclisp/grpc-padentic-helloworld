@@ -130,7 +130,8 @@ func etcdRevoke(c *clientv3.Client, lid clientv3.LeaseID) {
 
 func etcdKeepAlive(c *clientv3.Client, lid clientv3.LeaseID) {
 	if res, err := c.KeepAliveOnce(context.Background(), lid); err != nil {
-		log.Printf("etcd: failed to keep lease %v alive: %v", lid, err)
+		// fail fast
+		log.Fatalf("etcd: failed to keep lease %v alive: %v", lid, err)
 	} else {
 		log.Printf("etcd: keep lease %v alive: ttl %v", lid, res.TTL)
 	}
