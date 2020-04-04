@@ -25,7 +25,9 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
 	"log"
@@ -44,16 +46,23 @@ const (
 // server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedGreeterServer
-	listener net.Listener
-	stop     chan struct{}
+	listener      net.Listener
+	stop          chan struct{}
+	sayHelloCount int
 }
 
 // SayHello implements helloworld.GreeterServer
-func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.HelloReply, err error) {
 	md, _ := metadata.FromIncomingContext(ctx)
 	forwarded := md["x-forwarded-for"]
-	log.Printf("Received: %v from %v", in.GetName(), forwarded)
-	return &pb.HelloReply{Message: "Hello " + in.GetName() + " " + s.listener.Addr().String()}, nil
+	log.Printf("Received: %v from %v", req.GetName(), forwarded)
+	res = &pb.HelloReply{Message: "Hello " + req.GetName() + " " + s.listener.Addr().String()}
+	s.sayHelloCount++
+	if s.sayHelloCount%2 == 1 {
+		//err = fmt.Errorf("say hello count is %v", s.sayHelloCount)
+		err = status.Errorf(codes.Code(100), "say hello count is %v", s.sayHelloCount)
+	}
+	return res, err
 }
 
 func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_SubscribeNoticeServer) (err error) {
