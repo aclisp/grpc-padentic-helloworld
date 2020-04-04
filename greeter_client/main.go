@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"grpc-padentic-helloworld/registry"
 	"log"
 	"os"
@@ -50,19 +51,42 @@ func main() {
 		name = os.Args[1]
 	}
 
-	sayHello := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
+	// sayHello loop in the background
+	go func() {
+		for {
+			sayHello(c, name)
+			time.Sleep(50 * time.Second)
+		}
+	}()
+
+	// subscribe server notice
+	for {
+		stream, err := c.SubscribeNotice(context.Background(), &pb.SubscribeRequest{
+			Identity: fmt.Sprintf("client-%d", os.Getpid()),
+		})
 		if err != nil {
-			log.Printf("!xxxxxx! could not greet: %v", err)
-		} else {
-			log.Printf("!oooooo! Greeting: %s", r.GetMessage())
+			log.Printf("can not subscribe: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		for {
+			notice, err := stream.Recv()
+			if err != nil {
+				log.Printf("subscribe stream error: %v, retrying", err)
+				break
+			}
+			log.Printf("got notice: %v", notice)
 		}
 	}
+}
 
-	for {
-		sayHello()
-		time.Sleep(5 * time.Second)
+func sayHello(greeter pb.GreeterClient, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := greeter.SayHello(ctx, &pb.HelloRequest{Name: name})
+	if err != nil {
+		log.Printf("!xxxxxx! could not greet: %v", err)
+	} else {
+		log.Printf("!oooooo! Greeting: %s", r.GetMessage())
 	}
 }

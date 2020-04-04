@@ -23,6 +23,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"grpc-padentic-helloworld/registry"
 	"log"
 	"net"
@@ -31,13 +32,14 @@ import (
 	"syscall"
 	"time"
 
-	"google.golang.org/grpc"
 	pb "grpc-padentic-helloworld/helloworld"
+
+	"google.golang.org/grpc"
 )
 
 const (
-	service = "greeter_server"
-	address = "127.0.0.1:0"
+	serviceName = "greeter_server"
+	address     = "127.0.0.1:0"
 )
 
 var lis net.Listener
@@ -45,6 +47,7 @@ var lis net.Listener
 // server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedGreeterServer
+	stop chan struct{}
 }
 
 // SayHello implements helloworld.GreeterServer
@@ -53,18 +56,47 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 	return &pb.HelloReply{Message: "Hello " + in.GetName() + " " + lis.Addr().String()}, nil
 }
 
+func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_SubscribeNoticeServer) (err error) {
+	log.Printf("subscribed by %q", req.Identity)
+	defer func() {
+		log.Printf("un-subscribed %q on %v", req.Identity, err)
+	}()
+	for i := 0; ; i++ {
+		msg := fmt.Sprintf("%q notice %q: %d", lis.Addr(), req.Identity, i)
+		if err := srv.Send(&pb.Notice{Message: msg}); err != nil {
+			return err
+		}
+		select {
+		case <-s.stop:
+			return fmt.Errorf("server stopped")
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func NewServer() (s *server) {
+	return &server{
+		stop: make(chan struct{}, 1),
+	}
+}
+
+func (s *server) Stop() {
+	s.stop <- struct{}{}
+}
+
 func main() {
 	var err error
 	lis, err = net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
+	gserver := grpc.NewServer()
+	service := NewServer()
+	pb.RegisterGreeterServer(gserver, service)
 
 	stopped := make(chan struct{})
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := gserver.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 		stopped <- struct{}{}
@@ -75,7 +107,7 @@ func main() {
 	ticker := time.Tick(10 * time.Second)
 	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
 	lease := etcd.Grant(15 * time.Second)
-	etcd.Add(lease, service, lis.Addr().String())
+	etcd.Add(lease, serviceName, lis.Addr().String())
 
 heartbeatLoop:
 	for {
@@ -84,7 +116,8 @@ heartbeatLoop:
 			etcd.KeepAlive(lease)
 		case <-term:
 			etcd.Revoke(lease)
-			s.GracefulStop()
+			service.Stop()
+			gserver.GracefulStop()
 			break heartbeatLoop
 		}
 	}

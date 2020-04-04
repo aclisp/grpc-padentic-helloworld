@@ -39,6 +39,7 @@ message HelloReply {
 }
 
 message SubscribeRequest {
+  string identity = 1;
 }
 
 message Notice {
