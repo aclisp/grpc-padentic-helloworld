@@ -12,16 +12,19 @@ import (
 	"google.golang.org/grpc/naming"
 )
 
+// Etcd is a service registry using etcd as the storage
 type Etcd struct {
 	C *clientv3.Client
 }
 
+// NewEtcd creates an Etcd instance by using Connect
 func NewEtcd(endpoints []string) (e *Etcd) {
 	e = &Etcd{}
 	e.Connect(endpoints)
 	return e
 }
 
+// Connect to etcd with endpoints and a default timeout, block until connected
 func (e *Etcd) Connect(endpoints []string) {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
@@ -34,6 +37,7 @@ func (e *Etcd) Connect(endpoints []string) {
 	e.C = cli
 }
 
+// Grant a lease with ttl
 func (e *Etcd) Grant(ttl time.Duration) (lid clientv3.LeaseID) {
 	if lgr, err := e.C.Grant(context.Background(), int64(ttl.Seconds())); err != nil {
 		log.Fatalf("etcd: failed to grant lease: %v", err)
@@ -43,6 +47,7 @@ func (e *Etcd) Grant(ttl time.Duration) (lid clientv3.LeaseID) {
 	return lid
 }
 
+// Add register service address with lease
 func (e *Etcd) Add(lid clientv3.LeaseID, service, addr string) {
 	r := &etcdnaming.GRPCResolver{Client: e.C}
 	if err := r.Update(e.C.Ctx(), service, naming.Update{Op: naming.Add, Addr: addr}, clientv3.WithLease(lid)); err != nil {
@@ -51,11 +56,13 @@ func (e *Etcd) Add(lid clientv3.LeaseID, service, addr string) {
 	log.Printf("etcd: add service %q addr %q with lease %v", service, addr, lid)
 }
 
+// Revoke the lease, so that all of its attached services are deleted
 func (e *Etcd) Revoke(lid clientv3.LeaseID) {
 	e.C.Revoke(context.Background(), lid)
 	log.Printf("etcd: revoke lease %v", lid)
 }
 
+// KeepAlive keeps the lease alive, refreshing its TTL
 func (e *Etcd) KeepAlive(lid clientv3.LeaseID) {
 	if _, err := e.C.KeepAliveOnce(context.Background(), lid); err != nil {
 		// fail fast
@@ -65,6 +72,7 @@ func (e *Etcd) KeepAlive(lid clientv3.LeaseID) {
 	}
 }
 
+// Dial a grpc client connection by service name
 func (e *Etcd) Dial(ctx context.Context, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	r := &etcdnaming.GRPCResolver{Client: e.C}
 	b := grpc.RoundRobin(r)

@@ -85,7 +85,7 @@ func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_Subscr
 	}
 }
 
-func NewServer(l net.Listener) (s *server) {
+func newServer(l net.Listener) (s *server) {
 	return &server{
 		listener: l,
 		stop:     make(chan struct{}, 1),
@@ -102,7 +102,7 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	gserver := grpc.NewServer()
-	service := NewServer(lis)
+	service := newServer(lis)
 	pb.RegisterGreeterServer(gserver, service)
 
 	stopped := make(chan struct{})

@@ -31,7 +31,7 @@ type proxyServer struct {
 	stop     chan struct{}
 }
 
-func NewProxy(l net.Listener) (s *proxyServer) {
+func newProxy(l net.Listener) (s *proxyServer) {
 	return &proxyServer{
 		listener: l,
 		stop:     make(chan struct{}, 1),
