@@ -104,26 +104,102 @@ func (m *HelloReply) GetMessage() string {
 	return ""
 }
 
+type SubscribeRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SubscribeRequest) Reset()         { *m = SubscribeRequest{} }
+func (m *SubscribeRequest) String() string { return proto.CompactTextString(m) }
+func (*SubscribeRequest) ProtoMessage()    {}
+func (*SubscribeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_17b8c58d586b62f2, []int{2}
+}
+
+func (m *SubscribeRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SubscribeRequest.Unmarshal(m, b)
+}
+func (m *SubscribeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SubscribeRequest.Marshal(b, m, deterministic)
+}
+func (m *SubscribeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SubscribeRequest.Merge(m, src)
+}
+func (m *SubscribeRequest) XXX_Size() int {
+	return xxx_messageInfo_SubscribeRequest.Size(m)
+}
+func (m *SubscribeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SubscribeRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SubscribeRequest proto.InternalMessageInfo
+
+type Notice struct {
+	Message              string   `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Notice) Reset()         { *m = Notice{} }
+func (m *Notice) String() string { return proto.CompactTextString(m) }
+func (*Notice) ProtoMessage()    {}
+func (*Notice) Descriptor() ([]byte, []int) {
+	return fileDescriptor_17b8c58d586b62f2, []int{3}
+}
+
+func (m *Notice) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Notice.Unmarshal(m, b)
+}
+func (m *Notice) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Notice.Marshal(b, m, deterministic)
+}
+func (m *Notice) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Notice.Merge(m, src)
+}
+func (m *Notice) XXX_Size() int {
+	return xxx_messageInfo_Notice.Size(m)
+}
+func (m *Notice) XXX_DiscardUnknown() {
+	xxx_messageInfo_Notice.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Notice proto.InternalMessageInfo
+
+func (m *Notice) GetMessage() string {
+	if m != nil {
+		return m.Message
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*HelloRequest)(nil), "helloworld.HelloRequest")
 	proto.RegisterType((*HelloReply)(nil), "helloworld.HelloReply")
+	proto.RegisterType((*SubscribeRequest)(nil), "helloworld.SubscribeRequest")
+	proto.RegisterType((*Notice)(nil), "helloworld.Notice")
 }
 
 func init() { proto.RegisterFile("helloworld.proto", fileDescriptor_17b8c58d586b62f2) }
 
 var fileDescriptor_17b8c58d586b62f2 = []byte{
-	// 175 bytes of a gzipped FileDescriptorProto
+	// 228 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0xc8, 0x48, 0xcd, 0xc9,
 	0xc9, 0x2f, 0xcf, 0x2f, 0xca, 0x49, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x42, 0x88,
 	0x28, 0x29, 0x71, 0xf1, 0x78, 0x80, 0x78, 0x41, 0xa9, 0x85, 0xa5, 0xa9, 0xc5, 0x25, 0x42, 0x42,
 	0x5c, 0x2c, 0x79, 0x89, 0xb9, 0xa9, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x60, 0xb6, 0x92,
 	0x1a, 0x17, 0x17, 0x54, 0x4d, 0x41, 0x4e, 0xa5, 0x90, 0x04, 0x17, 0x7b, 0x6e, 0x6a, 0x71, 0x71,
-	0x62, 0x3a, 0x4c, 0x11, 0x8c, 0x6b, 0xe4, 0xc9, 0xc5, 0xee, 0x5e, 0x94, 0x9a, 0x5a, 0x92, 0x5a,
-	0x24, 0x64, 0xc7, 0xc5, 0x11, 0x9c, 0x58, 0x09, 0xd6, 0x25, 0x24, 0xa1, 0x87, 0xe4, 0x02, 0x64,
-	0xcb, 0xa4, 0xc4, 0xb0, 0xc8, 0x14, 0xe4, 0x54, 0x2a, 0x31, 0x38, 0x19, 0x70, 0x49, 0x67, 0xe6,
-	0xeb, 0xa5, 0x17, 0x15, 0x24, 0xeb, 0xa5, 0x56, 0x24, 0xe6, 0x16, 0xe4, 0xa4, 0x16, 0x23, 0xa9,
-	0x75, 0xe2, 0x07, 0x2b, 0x0e, 0x07, 0xb1, 0x03, 0x40, 0x5e, 0x0a, 0x60, 0x4c, 0x62, 0x03, 0xfb,
-	0xcd, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff, 0x0f, 0xb7, 0xcd, 0xf2, 0xef, 0x00, 0x00, 0x00,
+	0x62, 0x3a, 0x4c, 0x11, 0x8c, 0xab, 0x24, 0xc4, 0x25, 0x10, 0x5c, 0x9a, 0x54, 0x9c, 0x5c, 0x94,
+	0x99, 0x94, 0x0a, 0x35, 0x4f, 0x49, 0x89, 0x8b, 0xcd, 0x2f, 0xbf, 0x24, 0x33, 0x39, 0x15, 0xb7,
+	0x3e, 0xa3, 0x49, 0x8c, 0x5c, 0xec, 0xee, 0x45, 0xa9, 0xa9, 0x25, 0xa9, 0x45, 0x42, 0x76, 0x5c,
+	0x1c, 0xc1, 0x89, 0x95, 0x60, 0xeb, 0x84, 0x24, 0xf4, 0x90, 0x9c, 0x8e, 0xec, 0x4a, 0x29, 0x31,
+	0x2c, 0x32, 0x05, 0x39, 0x95, 0x4a, 0x0c, 0x42, 0xee, 0x5c, 0xfc, 0x70, 0x37, 0x40, 0x2d, 0x96,
+	0x41, 0x56, 0x8c, 0xee, 0x40, 0x29, 0x21, 0x64, 0x59, 0x88, 0x0e, 0x25, 0x06, 0x03, 0x46, 0x27,
+	0x03, 0x2e, 0xe9, 0xcc, 0x7c, 0xbd, 0xf4, 0xa2, 0x82, 0x64, 0xbd, 0xd4, 0x8a, 0xc4, 0xdc, 0x82,
+	0x9c, 0xd4, 0x62, 0x24, 0x95, 0x4e, 0xfc, 0x60, 0x5b, 0xc3, 0x41, 0xec, 0x00, 0x50, 0xa0, 0x06,
+	0x30, 0x26, 0xb1, 0x81, 0x43, 0xd7, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff, 0xe4, 0x11, 0xf2, 0xc7,
+	0x71, 0x01, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -140,6 +216,8 @@ const _ = grpc.SupportPackageIsVersion4
 type GreeterClient interface {
 	// Sends a greeting
 	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
+	// Subscribe a stream of notice
+	SubscribeNotice(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (Greeter_SubscribeNoticeClient, error)
 }
 
 type greeterClient struct {
@@ -159,10 +237,44 @@ func (c *greeterClient) SayHello(ctx context.Context, in *HelloRequest, opts ...
 	return out, nil
 }
 
+func (c *greeterClient) SubscribeNotice(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (Greeter_SubscribeNoticeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Greeter_serviceDesc.Streams[0], "/helloworld.Greeter/SubscribeNotice", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &greeterSubscribeNoticeClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Greeter_SubscribeNoticeClient interface {
+	Recv() (*Notice, error)
+	grpc.ClientStream
+}
+
+type greeterSubscribeNoticeClient struct {
+	grpc.ClientStream
+}
+
+func (x *greeterSubscribeNoticeClient) Recv() (*Notice, error) {
+	m := new(Notice)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // GreeterServer is the server API for Greeter service.
 type GreeterServer interface {
 	// Sends a greeting
 	SayHello(context.Context, *HelloRequest) (*HelloReply, error)
+	// Subscribe a stream of notice
+	SubscribeNotice(*SubscribeRequest, Greeter_SubscribeNoticeServer) error
 }
 
 // UnimplementedGreeterServer can be embedded to have forward compatible implementations.
@@ -171,6 +283,9 @@ type UnimplementedGreeterServer struct {
 
 func (*UnimplementedGreeterServer) SayHello(ctx context.Context, req *HelloRequest) (*HelloReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SayHello not implemented")
+}
+func (*UnimplementedGreeterServer) SubscribeNotice(req *SubscribeRequest, srv Greeter_SubscribeNoticeServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeNotice not implemented")
 }
 
 func RegisterGreeterServer(s *grpc.Server, srv GreeterServer) {
@@ -195,6 +310,27 @@ func _Greeter_SayHello_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Greeter_SubscribeNotice_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GreeterServer).SubscribeNotice(m, &greeterSubscribeNoticeServer{stream})
+}
+
+type Greeter_SubscribeNoticeServer interface {
+	Send(*Notice) error
+	grpc.ServerStream
+}
+
+type greeterSubscribeNoticeServer struct {
+	grpc.ServerStream
+}
+
+func (x *greeterSubscribeNoticeServer) Send(m *Notice) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Greeter_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "helloworld.Greeter",
 	HandlerType: (*GreeterServer)(nil),
@@ -204,6 +340,12 @@ var _Greeter_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Greeter_SayHello_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribeNotice",
+			Handler:       _Greeter_SubscribeNotice_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "helloworld.proto",
 }
