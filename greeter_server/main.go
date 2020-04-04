@@ -24,6 +24,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
 	"log"
 	"net"
@@ -31,38 +34,37 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	pb "grpc-padentic-helloworld/helloworld"
-
-	"google.golang.org/grpc"
 )
 
 const (
-	serviceName = "greeter_server"
+	serviceName = "com.github.aclisp.grpcpadentic.helloworld"
 	address     = "127.0.0.1:0"
 )
-
-var lis net.Listener
 
 // server is used to implement helloworld.GreeterServer.
 type server struct {
 	pb.UnimplementedGreeterServer
-	stop chan struct{}
+	listener net.Listener
+	stop     chan struct{}
 }
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", in.GetName())
-	return &pb.HelloReply{Message: "Hello " + in.GetName() + " " + lis.Addr().String()}, nil
+	md, _ := metadata.FromIncomingContext(ctx)
+	forwarded := md["x-forwarded-for"]
+	log.Printf("Received: %v from %v", in.GetName(), forwarded)
+	return &pb.HelloReply{Message: "Hello " + in.GetName() + " " + s.listener.Addr().String()}, nil
 }
 
 func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_SubscribeNoticeServer) (err error) {
-	log.Printf("subscribed by %q", req.Identity)
+	md, _ := metadata.FromIncomingContext(srv.Context())
+	forwarded := md["x-forwarded-for"]
+	log.Printf("subscribed by %q from %v", req.Identity, forwarded)
 	defer func() {
 		log.Printf("un-subscribed %q on %v", req.Identity, err)
 	}()
 	for i := 0; ; i++ {
-		msg := fmt.Sprintf("%q notice %q: %d", lis.Addr(), req.Identity, i)
+		msg := fmt.Sprintf("%q notice %q: %d", s.listener.Addr(), req.Identity, i)
 		if err := srv.Send(&pb.Notice{Message: msg}); err != nil {
 			return err
 		}
@@ -74,9 +76,10 @@ func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_Subscr
 	}
 }
 
-func NewServer() (s *server) {
+func NewServer(l net.Listener) (s *server) {
 	return &server{
-		stop: make(chan struct{}, 1),
+		listener: l,
+		stop:     make(chan struct{}, 1),
 	}
 }
 
@@ -85,13 +88,12 @@ func (s *server) Stop() {
 }
 
 func main() {
-	var err error
-	lis, err = net.Listen("tcp", address)
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	gserver := grpc.NewServer()
-	service := NewServer()
+	service := NewServer(lis)
 	pb.RegisterGreeterServer(gserver, service)
 
 	stopped := make(chan struct{})

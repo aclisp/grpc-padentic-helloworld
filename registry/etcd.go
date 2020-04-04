@@ -65,10 +65,10 @@ func (e *Etcd) KeepAlive(lid clientv3.LeaseID) {
 	}
 }
 
-func (e *Etcd) Dial(service string) (*grpc.ClientConn, error) {
+func (e *Etcd) Dial(ctx context.Context, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	r := &etcdnaming.GRPCResolver{Client: e.C}
 	b := grpc.RoundRobin(r)
-	conn, err := grpc.Dial(service, grpc.WithBalancer(b), grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
+	conn, err := grpc.DialContext(ctx, service, append(opts, grpc.WithBalancer(b))...)
 	if err != nil {
 		return nil, fmt.Errorf("etcd: failed to dial service %q: %v", service, err)
 	}

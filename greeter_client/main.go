@@ -22,23 +22,23 @@ package main
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc"
+	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
 	"log"
 	"os"
 	"time"
-
-	pb "grpc-padentic-helloworld/helloworld"
 )
 
 const (
-	service     = "greeter_server"
+	serviceName = "com.github.aclisp.grpcpadentic.proxy"
 	defaultName = "world"
 )
 
 func main() {
 	// Set up a connection to the server.
 	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
-	conn, err := etcd.Dial(service)
+	conn, err := etcd.Dial(context.Background(), serviceName, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -73,6 +73,7 @@ func main() {
 			notice, err := stream.Recv()
 			if err != nil {
 				log.Printf("subscribe stream error: %v, retrying", err)
+				time.Sleep(5 * time.Second)
 				break
 			}
 			log.Printf("got notice: %v", notice)
