@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+// this package is used as an internal server to simulate server-to-server RPCs
+// the difference from helloworld proto is that helloworld is the client-to-server APIs
+package com.github.aclisp.grpcpadentic.router;
+
+// Router to find which server a particular client belongs to
+service Router {
+    rpc GetRoute (GetRouteReq) returns (GetRouteRes) {}
+    rpc AddRoute (AddRouteReq) returns (AddRouteRes) {}
+    rpc DelRoute (DelRouteReq) returns (DelRouteRes) {}
+}
+
+message Route {
+    string client_identity = 1;
+    string server_address = 2;
+}
+
+message GetRouteReq {
+}
+
+message GetRouteRes {
+    repeated Route routes = 1;
+}
+
+// AddRoute adds a route the client is from the server
+message AddRouteReq {
+    Route route = 1;
+}
+
+message AddRouteRes {
+}
+
+
+message DelRouteReq {
+    Route route = 1;
+}
+
+message DelRouteRes {
+}

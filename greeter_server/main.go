@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
+	rt "grpc-padentic-helloworld/router"
 	"io/ioutil"
 	"log"
 	"net"
@@ -52,10 +53,19 @@ type server struct {
 	listener      net.Listener
 	stop          chan struct{}
 	sayHelloCount int
+	router        rt.RouterClient
 }
 
 // SayHello implements helloworld.GreeterServer
 func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.HelloReply, err error) {
+
+	// first we do a server-to-server RPC to know the trace
+	if route, err := s.router.GetRoute(ctx, &rt.GetRouteReq{}); err == nil {
+		for _, x := range route.Routes {
+			log.Printf(" --- route --- %q -> %q", x.ClientIdentity, x.ServerAddress)
+		}
+	}
+
 	md, _ := metadata.FromIncomingContext(ctx)
 	forwarded := md["x-forwarded-for"]
 	log.Printf("Received: %v from %v", req.GetName(), forwarded)
@@ -72,8 +82,15 @@ func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_Subscr
 	md, _ := metadata.FromIncomingContext(srv.Context())
 	forwarded := md["x-forwarded-for"]
 	log.Printf("subscribed by %q from %v", req.Identity, forwarded)
+	s.router.AddRoute(context.Background(), &rt.AddRouteReq{
+		Route: &rt.Route{
+			ClientIdentity: req.Identity,
+			ServerAddress:  s.listener.Addr().String(),
+		},
+	})
 	defer func() {
 		log.Printf("un-subscribed %q on %v", req.Identity, err)
+		s.router.DelRoute(context.Background(), &rt.DelRouteReq{Route: &rt.Route{ClientIdentity: req.Identity}})
 	}()
 	for i := 0; ; i++ {
 		msg := fmt.Sprintf("%q notice %q: %d", s.listener.Addr(), req.Identity, i)
@@ -99,6 +116,14 @@ func (s *server) Stop() {
 	s.stop <- struct{}{}
 }
 
+func (s *server) EnsureDependentService(etcd *registry.Etcd) {
+	conn, err := etcd.Dial(context.Background(), "com.github.aclisp.grpcpadentic.router", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	s.router = rt.NewRouterClient(conn)
+}
+
 func main() {
 	grpc.EnableTracing = true
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
@@ -108,8 +133,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
 	gserver := grpc.NewServer()
 	service := newServer(lis)
+	service.EnsureDependentService(etcd)
 	pb.RegisterGreeterServer(gserver, service)
 
 	stopped := make(chan struct{})
@@ -123,7 +150,6 @@ func main() {
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 	ticker := time.Tick(10 * time.Second)
-	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
 	lease := etcd.Grant(15 * time.Second)
 	etcd.Add(lease, serviceName, lis.Addr().String())
 

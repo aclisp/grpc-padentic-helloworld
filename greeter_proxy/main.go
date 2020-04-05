@@ -43,10 +43,17 @@ func newProxy(l net.Listener) (s *proxyServer) {
 
 func (d *director) Connect(ctx context.Context, method string) (context.Context, *grpc.ClientConn, error) {
 	log.Printf("director connect %q", method)
-	fullServiceName := strings.SplitN(method, "/", 3)[1]
-	serviceName := fullServiceName[:strings.LastIndexByte(fullServiceName, '.')]
-	conn, err := d.cr.Dial(ctx, serviceName)
-	newCtx := context.WithValue(ctx, serviceNameKey{}, serviceName)
+	// turns "/pkg.Service/GetFoo" into "pkg"
+	method = strings.TrimPrefix(method, "/") // remove leading slash
+	if i := strings.Index(method, "/"); i >= 0 {
+		method = method[:i] // remove everything from second slash
+	}
+	if i := strings.LastIndex(method, "."); i >= 0 {
+		method = method[:i] // cut down from last dotted component
+	}
+	// use "pkg" as service name
+	conn, err := d.cr.Dial(ctx, method)
+	newCtx := context.WithValue(ctx, serviceNameKey{}, method)
 	return newCtx, conn, err
 }
 
