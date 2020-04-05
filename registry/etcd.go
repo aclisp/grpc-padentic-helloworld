@@ -39,7 +39,9 @@ func (e *Etcd) Connect(endpoints []string) {
 
 // Grant a lease with ttl
 func (e *Etcd) Grant(ttl time.Duration) (lid clientv3.LeaseID) {
-	if lgr, err := e.C.Grant(context.Background(), int64(ttl.Seconds())); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if lgr, err := e.C.Grant(ctx, int64(ttl.Seconds())); err != nil {
 		log.Fatalf("etcd: failed to grant lease: %v", err)
 	} else {
 		lid = lgr.ID
@@ -49,8 +51,10 @@ func (e *Etcd) Grant(ttl time.Duration) (lid clientv3.LeaseID) {
 
 // Add register service address with lease
 func (e *Etcd) Add(lid clientv3.LeaseID, service, addr string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	r := &etcdnaming.GRPCResolver{Client: e.C}
-	if err := r.Update(e.C.Ctx(), service, naming.Update{Op: naming.Add, Addr: addr}, clientv3.WithLease(lid)); err != nil {
+	if err := r.Update(ctx, service, naming.Update{Op: naming.Add, Addr: addr}, clientv3.WithLease(lid)); err != nil {
 		log.Fatalf("etcd: failed to add service %q addr %q with lease %v: %v", service, addr, lid, err)
 	}
 	log.Printf("etcd: add service %q addr %q with lease %v", service, addr, lid)
@@ -58,13 +62,17 @@ func (e *Etcd) Add(lid clientv3.LeaseID, service, addr string) {
 
 // Revoke the lease, so that all of its attached services are deleted
 func (e *Etcd) Revoke(lid clientv3.LeaseID) {
-	e.C.Revoke(context.Background(), lid)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	e.C.Revoke(ctx, lid)
 	log.Printf("etcd: revoke lease %v", lid)
 }
 
 // KeepAlive keeps the lease alive, refreshing its TTL
 func (e *Etcd) KeepAlive(lid clientv3.LeaseID) {
-	if _, err := e.C.KeepAliveOnce(context.Background(), lid); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if _, err := e.C.KeepAliveOnce(ctx, lid); err != nil {
 		// fail fast
 		log.Fatalf("etcd: failed to keep lease %v alive: %v", lid, err)
 	} else {
