@@ -5,16 +5,10 @@ import (
 	"github.com/vgough/grpc-proxy/connector"
 	"github.com/vgough/grpc-proxy/proxy"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
-	"grpc-padentic-helloworld/registry"
-	"io/ioutil"
+	"grpc-padentic-helloworld/service"
 	"log"
-	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -28,18 +22,6 @@ type director struct {
 }
 
 type serviceNameKey struct{}
-
-type proxyServer struct {
-	listener net.Listener
-	stop     chan struct{}
-}
-
-func newProxy(l net.Listener) (s *proxyServer) {
-	return &proxyServer{
-		listener: l,
-		stop:     make(chan struct{}, 1),
-	}
-}
 
 func (d *director) Connect(ctx context.Context, method string) (context.Context, *grpc.ClientConn, error) {
 	log.Printf("director connect %q", method)
@@ -64,18 +46,16 @@ func (d *director) Release(ctx context.Context, conn *grpc.ClientConn) {
 
 func main() {
 	// setup grpc tracing and logging
-	grpc.EnableTracing = true
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
 	go func() { log.Println(http.ListenAndServe("127.0.0.1:6061", nil)) }()
 
 	// proxy must know etcd to do service address lookup, and also self address registration
-	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
+	service := service.New(serviceName, address, 60*time.Second)
 
 	// the backend connector which dials by service name
 	cr := connector.NewCachingConnector(
 		connector.WithDialer(
 			func(ctx context.Context, target string, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-				return etcd.Dial(ctx, target, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second), grpc.WithCodec(proxy.Codec()))
+				return service.Registry().Dial(ctx, target, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second), grpc.WithCodec(proxy.Codec()))
 			}))
 	cr.OnConnect = func(addr string) {
 		log.Printf("connector event OnConnect addr = %q", addr)
@@ -88,47 +68,21 @@ func main() {
 	}
 
 	// proxy is also a network listener and grpc server
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
 	director := &director{cr: cr}
 	gserver := grpc.NewServer(
 		grpc.CustomCodec(proxy.Codec()),
 		grpc.UnknownServiceHandler(proxy.TransparentHandler(director)),
 	)
-	//proxy := NewProxy(lis)
+	service.SetServer(gserver)
+	service.SetHeartbeatTask(func() {
+		if expired := cr.Expire(); len(expired) > 0 {
+			log.Printf("director expire %v", expired)
+		}
+	})
+	service.SetInterrupter(func() {
+		gserver.Stop()
+	})
 
 	// start the serving in the background
-	stopped := make(chan struct{})
-	go func() {
-		if err := gserver.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-		stopped <- struct{}{}
-	}()
-
-	// register proxy service
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-	ticker := time.Tick(60 * time.Second)
-	lease := etcd.Grant(65 * time.Second)
-	etcd.Add(lease, serviceName, lis.Addr().String())
-
-heartbeatLoop:
-	for {
-		select {
-		case <-ticker:
-			etcd.KeepAlive(lease)
-			if expired := cr.Expire(); len(expired) > 0 {
-				log.Printf("director expire %v", expired)
-			}
-		case <-term:
-			etcd.Revoke(lease)
-			gserver.Stop()
-			break heartbeatLoop
-		}
-	}
-	<-stopped
-	log.Printf("bye bye")
+	service.Run()
 }

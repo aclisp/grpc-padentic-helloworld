@@ -26,19 +26,13 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	pb "grpc-padentic-helloworld/helloworld"
-	"grpc-padentic-helloworld/registry"
 	rt "grpc-padentic-helloworld/router"
-	"io/ioutil"
+	"grpc-padentic-helloworld/service"
 	"log"
-	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 )
 
@@ -48,16 +42,16 @@ const (
 )
 
 // server is used to implement helloworld.GreeterServer.
-type server struct {
+type greeter struct {
 	pb.UnimplementedGreeterServer
-	listener      net.Listener
+	service       service.Service
 	stop          chan struct{}
 	sayHelloCount int
 	router        rt.RouterClient
 }
 
 // SayHello implements helloworld.GreeterServer
-func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.HelloReply, err error) {
+func (s *greeter) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.HelloReply, err error) {
 
 	// first we do a server-to-server RPC to know the trace
 	if route, err := s.router.GetRoute(ctx, &rt.GetRouteReq{}); err == nil {
@@ -69,7 +63,7 @@ func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.He
 	md, _ := metadata.FromIncomingContext(ctx)
 	forwarded := md["x-forwarded-for"]
 	log.Printf("Received: %v from %v", req.GetName(), forwarded)
-	res = &pb.HelloReply{Message: "Hello " + req.GetName() + " " + s.listener.Addr().String()}
+	res = &pb.HelloReply{Message: "Hello " + req.GetName() + " " + s.service.Address()}
 	s.sayHelloCount++
 	if s.sayHelloCount%2 == 1 {
 		//err = fmt.Errorf("say hello count is %v", s.sayHelloCount)
@@ -78,14 +72,14 @@ func (s *server) SayHello(ctx context.Context, req *pb.HelloRequest) (res *pb.He
 	return res, err
 }
 
-func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_SubscribeNoticeServer) (err error) {
+func (s *greeter) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_SubscribeNoticeServer) (err error) {
 	md, _ := metadata.FromIncomingContext(srv.Context())
 	forwarded := md["x-forwarded-for"]
 	log.Printf("subscribed by %q from %v", req.Identity, forwarded)
 	s.router.AddRoute(context.Background(), &rt.AddRouteReq{
 		Route: &rt.Route{
 			ClientIdentity: req.Identity,
-			ServerAddress:  s.listener.Addr().String(),
+			ServerAddress:  s.service.Address(),
 		},
 	})
 	defer func() {
@@ -93,7 +87,7 @@ func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_Subscr
 		s.router.DelRoute(context.Background(), &rt.DelRouteReq{Route: &rt.Route{ClientIdentity: req.Identity}})
 	}()
 	for i := 0; ; i++ {
-		msg := fmt.Sprintf("%q notice %q: %d", s.listener.Addr(), req.Identity, i)
+		msg := fmt.Sprintf("%q notice %q: %d", s.service.Address(), req.Identity, i)
 		if err := srv.Send(&pb.Notice{Message: msg}); err != nil {
 			return err
 		}
@@ -105,66 +99,33 @@ func (s *server) SubscribeNotice(req *pb.SubscribeRequest, srv pb.Greeter_Subscr
 	}
 }
 
-func newServer(l net.Listener) (s *server) {
-	return &server{
-		listener: l,
-		stop:     make(chan struct{}, 1),
+func newGreeter(s service.Service) (g *greeter) {
+	g = &greeter{
+		service: s,
+		stop:    make(chan struct{}, 1),
 	}
-}
 
-func (s *server) Stop() {
-	s.stop <- struct{}{}
-}
-
-func (s *server) EnsureDependentService(etcd *registry.Etcd) {
-	conn, err := etcd.Dial(context.Background(), "com.github.aclisp.grpcpadentic.router", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
+	conn, err := s.Registry().Dial(context.Background(), "com.github.aclisp.grpcpadentic.router", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
-	s.router = rt.NewRouterClient(conn)
+	g.router = rt.NewRouterClient(conn)
+	return g
+}
+
+func (s *greeter) Stop() {
+	s.stop <- struct{}{}
 }
 
 func main() {
-	grpc.EnableTracing = true
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
+	// for pprof and trace
 	go func() { log.Println(http.ListenAndServe("127.0.0.1:6060", nil)) }()
 
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
-	gserver := grpc.NewServer()
-	service := newServer(lis)
-	service.EnsureDependentService(etcd)
-	pb.RegisterGreeterServer(gserver, service)
-
-	stopped := make(chan struct{})
-	go func() {
-		if err := gserver.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-		stopped <- struct{}{}
-	}()
-
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-	ticker := time.Tick(10 * time.Second)
-	lease := etcd.Grant(15 * time.Second)
-	etcd.Add(lease, serviceName, lis.Addr().String())
-
-heartbeatLoop:
-	for {
-		select {
-		case <-ticker:
-			etcd.KeepAlive(lease)
-		case <-term:
-			etcd.Revoke(lease)
-			service.Stop()
-			gserver.GracefulStop()
-			break heartbeatLoop
-		}
-	}
-	<-stopped
-	log.Printf("bye bye")
+	service := service.New(serviceName, address, 10*time.Second)
+	greeter := newGreeter(service)
+	service.SetInterrupter(func() {
+		greeter.Stop()
+	})
+	pb.RegisterGreeterServer(service.Server(), greeter)
+	service.Run()
 }
