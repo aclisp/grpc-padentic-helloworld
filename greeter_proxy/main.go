@@ -5,9 +5,12 @@ import (
 	"github.com/vgough/grpc-proxy/connector"
 	"github.com/vgough/grpc-proxy/proxy"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 	"grpc-padentic-helloworld/registry"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -53,6 +56,11 @@ func (d *director) Release(ctx context.Context, conn *grpc.ClientConn) {
 }
 
 func main() {
+	// setup grpc tracing and logging
+	grpc.EnableTracing = true
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
+	go func() { log.Println(http.ListenAndServe("127.0.0.1:6061", nil)) }()
+
 	// proxy must know etcd to do service address lookup, and also self address registration
 	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
 
@@ -63,13 +71,13 @@ func main() {
 				return etcd.Dial(ctx, target, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second), grpc.WithCodec(proxy.Codec()))
 			}))
 	cr.OnConnect = func(addr string) {
-		log.Printf("@_OnConnect addr = %q", addr)
+		log.Printf("connector event OnConnect addr = %q", addr)
 	}
 	cr.OnCacheMiss = func(addr string) {
-		log.Printf("@_OnCacheMiss addr = %q", addr)
+		log.Printf("connector event OnCacheMiss addr = %q", addr)
 	}
 	cr.OnConnectionCountUpdate = func(count int) {
-		log.Printf("@_OnConnectionCountUpdate count = %d", count)
+		log.Printf("connector event OnConnectionCountUpdate count = %d", count)
 	}
 
 	// proxy is also a network listener and grpc server

@@ -23,9 +23,12 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"time"
 )
@@ -36,6 +39,10 @@ const (
 )
 
 func main() {
+	grpc.EnableTracing = true
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
+	go func() { log.Println(http.ListenAndServe("127.0.0.1:6062", nil)) }()
+
 	// Set up a connection to the server.
 	etcd := registry.NewEtcd([]string{"127.0.0.1:2379"})
 	conn, err := etcd.Dial(context.Background(), serviceName, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))

@@ -26,12 +26,15 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	pb "grpc-padentic-helloworld/helloworld"
 	"grpc-padentic-helloworld/registry"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -97,6 +100,10 @@ func (s *server) Stop() {
 }
 
 func main() {
+	grpc.EnableTracing = true
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(os.Stderr, ioutil.Discard, ioutil.Discard, 99))
+	go func() { log.Println(http.ListenAndServe("127.0.0.1:6060", nil)) }()
+
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
