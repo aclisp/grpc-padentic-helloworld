@@ -24,16 +24,18 @@ package main
 import (
 	"context"
 	"fmt"
+	_ "grpc-padentic-helloworld/pkg/codec"
+	"grpc-padentic-helloworld/pkg/service"
+	pb "grpc-padentic-helloworld/proto/helloworld"
+	rt "grpc-padentic-helloworld/proto/router"
+	"log"
+	"net/http"
+	"time"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	pb "grpc-padentic-helloworld/helloworld"
-	rt "grpc-padentic-helloworld/router"
-	"grpc-padentic-helloworld/service"
-	"log"
-	"net/http"
-	"time"
 )
 
 const (

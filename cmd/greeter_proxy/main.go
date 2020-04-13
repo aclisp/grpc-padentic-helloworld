@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/vgough/grpc-proxy/connector"
-	"github.com/vgough/grpc-proxy/proxy"
 	"google.golang.org/grpc"
-	"grpc-padentic-helloworld/service"
+	"grpc-padentic-helloworld/pkg/grpcproxy/connector"
+	"grpc-padentic-helloworld/pkg/grpcproxy/proxy"
+	"grpc-padentic-helloworld/pkg/service"
 	"log"
 	"net/http"
 	"strings"

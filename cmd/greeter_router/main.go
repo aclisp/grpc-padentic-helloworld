@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	rt "grpc-padentic-helloworld/router"
-	"grpc-padentic-helloworld/service"
+	_ "grpc-padentic-helloworld/pkg/codec"
+	"grpc-padentic-helloworld/pkg/service"
+	rt "grpc-padentic-helloworld/proto/router"
 	"log"
 	"net/http"
 	"sort"

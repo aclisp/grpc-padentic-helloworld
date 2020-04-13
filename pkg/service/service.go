@@ -3,7 +3,7 @@ package service
 import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
-	"grpc-padentic-helloworld/registry"
+	"grpc-padentic-helloworld/pkg/registry"
 	"io/ioutil"
 	"log"
 	"net"

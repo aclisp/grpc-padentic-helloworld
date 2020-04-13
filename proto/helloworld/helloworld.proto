@@ -36,6 +36,10 @@ message HelloRequest {
 // The response message containing the greetings
 message HelloReply {
   string message = 1;
+  int32 age = 2;
+  string good_song_name = 3;
+  double balance = 4;
+  bool enable = 5;
 }
 
 message SubscribeRequest {
