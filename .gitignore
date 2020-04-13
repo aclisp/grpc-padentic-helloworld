@@ -2,3 +2,4 @@
 *.iml
 greeter_server/greeter_server
 greeter_client/greeter_client
+cmd/grpcjson_proxy/grpc-json-proxy
